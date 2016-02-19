@@ -1,6 +1,7 @@
 from flask import Flask, abort, request
 import json
 from pathlib import Path
+from itertools import dropwhile, count
 
 app = Flask(__name__)
 db_path = app.root_path + '/db.json'
@@ -9,17 +10,16 @@ if not Path(db_path).is_file():
         json.dump({}, f)
 
 
-@app.route('/submit/<id>', methods=['POST'])
-def submit(id):
+@app.route('/submit', methods=['POST'])
+def submit():
     if request.method == 'POST':
         with open(db_path) as f:
             db = json.load(f)
-        if id in db:
-            abort(404)
+        id = next(dropwhile(lambda x: x in db, map(str, count(1))))
         db[id] = request.get_data().decode().split()
         with open(db_path, 'w') as f:
             json.dump(db, f)
-    return ''
+    return id
 
 
 @app.route('/get/<id>')
