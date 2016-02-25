@@ -67,7 +67,7 @@ def get(user, queue):
                 _external=True))
 
 
-@app.route('/done/<user>/<queue>/<task>')
+@app.route('/done/<user>/<queue>/<path:task>')
 def done(user, queue, task):
     User.query.filter_by(token=user).first_or_404()
     queue = Queue.query.get_or_404(int(queue))
