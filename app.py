@@ -1,4 +1,4 @@
-from flask import Flask, request, abort
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -28,11 +28,14 @@ class Queue(db.Model):
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     queue_id = db.Column(db.Integer, db.ForeignKey('queue.id'))
+    assigned = db.Column(db.Boolean)
     token = db.Column(db.String(50))
 
     def __init__(self, queue_id, token):
         self.queue_id = queue_id
         self.token = token
+        self.assigned = False
+        self.done = False
 
 
 @app.route('/submit/<user>', methods=['POST'])
@@ -54,14 +57,32 @@ def submit(user):
 def get(user, queue):
     User.query.filter_by(token=user).first_or_404()
     queue = Queue.query.get_or_404(int(queue))
-    task = queue.tasks.first()
-    if task is None:
-        db.session.delete(queue)
-        db.session.commit()
-        abort(404)
-    db.session.delete(task)
+    task = queue.tasks.filter_by(assigned=False).first_or_404()
+    task.assigned = True
     db.session.commit()
     return task.token
+
+
+@app.route('/done/<user>/<queue>/<task>')
+def done(user, queue, task):
+    User.query.filter_by(token=user).first_or_404()
+    queue = Queue.query.get_or_404(int(queue))
+    task = queue.tasks.filter_by(token=task).first_or_404()
+    db.session.delete(task)
+    db.session.commit()
+    if queue.tasks.first() is None:
+        db.session.delete(queue)
+        db.session.commit()
+    return ''
+
+
+@app.route('/reset/<user>/<queue>')
+def reset(user, queue):
+    User.query.filter_by(token=user).first_or_404()
+    queue = Queue.query.get_or_404(int(queue))
+    queue.tasks.update({'assigned': False})
+    db.session.commit()
+    return ''
 
 
 if __name__ == '__main__':
