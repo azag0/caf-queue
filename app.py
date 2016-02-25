@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -50,7 +50,8 @@ def submit(user):
             task = Task(queue.id, task)
             db.session.add(task)
         db.session.commit()
-    return str('/get/{}/{}'.format(user.token, queue.id))
+    return url_for('get', user=user.token, queue=queue.id,
+                   _external=True)
 
 
 @app.route('/get/<user>/<queue>')
@@ -60,7 +61,10 @@ def get(user, queue):
     task = queue.tasks.filter_by(assigned=False).first_or_404()
     task.assigned = True
     db.session.commit()
-    return task.token
+    return '{}\n{}'.format(
+        task.token,
+        url_for('done', user=user, queue=queue.id, task=task.token,
+                _external=True))
 
 
 @app.route('/done/<user>/<queue>/<task>')
