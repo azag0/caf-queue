@@ -1,5 +1,8 @@
 from flask import Flask, request, url_for
 from flask_sqlalchemy import SQLAlchemy
+import http.client
+import urllib
+
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///{}/queue.db'.format(app.root_path)
@@ -7,13 +10,37 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    token = db.Column(db.String(20), unique=True)
-    queues = db.relationship('Queue', backref='user', lazy='dynamic')
+def pushover(user, msg):
+    token = Pushover.query.first().token
+    if not token:
+        return
+    conn = http.client.HTTPSConnection('api.pushover.net:443')
+    conn.request('POST',
+                 '/1/messages.json',
+                 urllib.parse.urlencode({
+                     'token': token,
+                     'user': user,
+                     'message': msg}),
+                 {'Content-type': 'application/x-www-form-urlencoded'})
+    conn.getresponse()
+
+
+class Pushover(db.Model):
+    token = db.Column(db.String(20), primary_key=True)
 
     def __init__(self, token):
         self.token = token
+
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(20), unique=True)
+    pushover = db.Column(db.String(20))
+    queues = db.relationship('Queue', backref='user', lazy='dynamic')
+
+    def __init__(self, token, pushover=None):
+        self.token = token
+        self.pushover = pushover
 
 
 class Queue(db.Model):
@@ -69,7 +96,7 @@ def get(user, queue):
 
 @app.route('/done/<user>/<queue>/<path:task>')
 def done(user, queue, task):
-    User.query.filter_by(token=user).first_or_404()
+    user = User.query.filter_by(token=user).first_or_404()
     queue = Queue.query.get_or_404(int(queue))
     task = queue.tasks.filter_by(token=task).first_or_404()
     db.session.delete(task)
@@ -77,6 +104,9 @@ def done(user, queue, task):
     if queue.tasks.first() is None:
         db.session.delete(queue)
         db.session.commit()
+        if user.pushover:
+            pushover(user.pushover,
+                     'Queue #{} is done'.format(queue.id))
     return ''
 
 
