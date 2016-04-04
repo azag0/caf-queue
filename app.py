@@ -85,7 +85,7 @@ def submit(user):
 def get(user, queue):
     User.query.filter_by(token=user).first_or_404()
     queue = Queue.query.get_or_404(int(queue))
-    task = queue.tasks.filter_by(assigned=False).first_or_404()
+    task = queue.tasks.filter_by(assigned=False).order_by(Task.id).first_or_404()
     task.assigned = True
     db.session.commit()
     return '{}\n{}'.format(
