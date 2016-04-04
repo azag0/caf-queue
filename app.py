@@ -88,10 +88,12 @@ def get(user, queue):
     task = queue.tasks.filter_by(assigned=False).order_by(Task.id).first_or_404()
     task.assigned = True
     db.session.commit()
-    return '{}\n{}'.format(
+    return '\n'.join([
         task.token,
         url_for('done', user=user, queue=queue.id, task=task.token,
-                _external=True))
+                _external=True),
+        url_for('put_back', user=user, queue=queue.id, task=task.token,
+                _external=True)])
 
 
 @app.route('/done/<user>/<queue>/<path:task>')
@@ -107,6 +109,17 @@ def done(user, queue, task):
         if user.pushover:
             pushover(user.pushover,
                      'Queue #{} is done'.format(queue.id))
+    return ''
+
+
+@app.route('/put-back/<user>/<queue>/<path:task>')
+def put_back(user, queue, task):
+    user = User.query.filter_by(token=user).first_or_404()
+    queue = Queue.query.get_or_404(int(queue))
+    task = queue.tasks.filter_by(token=task).first_or_404()
+    db.session.delete(task)
+    db.session.add(Task(task.queue_id, task.token))
+    db.session.commit()
     return ''
 
 
