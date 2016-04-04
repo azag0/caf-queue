@@ -9,5 +9,6 @@ config = json.load(sys.stdin)
 for user in config['users']:
     user = User(**user)
     db.session.add(user)
-db.session.add(Pushover(config['pushover']))
+if 'pushover' in config:
+    db.session.add(Pushover(config['pushover']))
 db.session.commit()
