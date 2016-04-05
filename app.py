@@ -56,13 +56,18 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     queue_id = db.Column(db.Integer, db.ForeignKey('queue.id'))
     assigned = db.Column(db.Boolean)
+    done = db.Column(db.Boolean)
     token = db.Column(db.String(50))
 
-    def __init__(self, queue_id, token):
+    def __init__(self, queue_id, token, assigned=False, done=False):
         self.queue_id = queue_id
         self.token = token
-        self.assigned = False
-        self.done = False
+        self.assigned = assigned
+        self.done = done
+
+    def __repr__(self):
+        return 'Task({})'.format(', '.join(map(repr, [
+            self.queue_id, self.token, self.assigned, self.done])))
 
 
 @app.route('/submit/<user>', methods=['POST'])
@@ -118,7 +123,7 @@ def put_back(user, queue, task):
     queue = Queue.query.get_or_404(int(queue))
     task = queue.tasks.filter_by(token=task).first_or_404()
     db.session.delete(task)
-    db.session.add(Task(task.queue_id, task.token))
+    db.session.add(Task(queue.id, task.token))
     db.session.commit()
     return ''
 
