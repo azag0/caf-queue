@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- vim: set ft=liquid: -->
+<head>
+    <title>Queue #{{ queue }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: monospace;
+        }
+
+        table {
+            border-spacing: 0;
+        }
+
+        td {
+            padding: 0 1em 0 0;
+        }
+
+        ul {
+            list-style-type: none;
+        }
+
+        a {
+            text-decoration: none;
+        }
+    </style>
+</head>
+<table>
+    <tr>
+        <th>Task</th>
+        <th>Status</th>
+    </tr>
+    {% for task, assigned in tasks %}
+        <tr>
+            <td>{{ task }}</td>
+            <td>{{ assigned }}</a></td>
+        </tr>
+    {% endfor %}
+</table>

@@ -1,4 +1,4 @@
-from flask import Flask, request, url_for
+from flask import Flask, request, url_for, render_template
 from flask_sqlalchemy import SQLAlchemy
 import http.client
 import urllib
@@ -106,9 +106,11 @@ def done(user, queue, task):
     user = User.query.filter_by(token=user).first_or_404()
     queue = Queue.query.get_or_404(int(queue))
     task = queue.tasks.filter_by(token=task).first_or_404()
-    db.session.delete(task)
+    task.done = True
     db.session.commit()
-    if queue.tasks.first() is None:
+    if queue.tasks.filter_by(done=False).first() is None:
+        for task in queue.tasks.all():
+            db.session.delete(task)
         db.session.delete(queue)
         db.session.commit()
         if user.pushover:
@@ -135,6 +137,22 @@ def reset(user, queue):
     queue.tasks.update({'assigned': False})
     db.session.commit()
     return ''
+
+
+@app.route('/view/<user>/<queue>')
+def view(user, queue):
+    User.query.filter_by(token=user).first_or_404()
+    queue = Queue.query.get_or_404(int(queue))
+    rows = []
+    for task in queue.tasks.order_by(Task.id).all():
+        if task.done:
+            status = 'Done'
+        elif task.assigned:
+            status = 'Assigned'
+        else:
+            status = 'Waiting'
+        rows.append((task.token, status))
+    return render_template('queue.html', queue=queue.id, tasks=rows)
 
 
 if __name__ == '__main__':
