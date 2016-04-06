@@ -27,11 +27,13 @@
 </head>
 <table>
     <tr>
+        <th>Label</th>
         <th>Task</th>
         <th>Status</th>
     </tr>
-    {% for task, assigned in tasks %}
+    {% for label, task, assigned in tasks %}
         <tr>
+            <td>{{ label }}</td>
             <td>{{ task }}</td>
             <td>{{ assigned }}</a></td>
         </tr>

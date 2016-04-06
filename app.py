@@ -58,12 +58,14 @@ class Task(db.Model):
     assigned = db.Column(db.Boolean)
     done = db.Column(db.Boolean)
     token = db.Column(db.String(50))
+    label = db.Column(db.String(100))
 
-    def __init__(self, queue_id, token, assigned=False, done=False):
+    def __init__(self, queue_id, token, label=None, assigned=False, done=False):
         self.queue_id = queue_id
         self.token = token
         self.assigned = assigned
         self.done = done
+        self.label = label or ''
 
     def __repr__(self):
         return 'Task({})'.format(', '.join(map(repr, [
@@ -74,12 +76,13 @@ class Task(db.Model):
 def submit(user):
     if request.method == 'POST':
         user = User.query.filter_by(token=user).first_or_404()
-        tasks = request.get_data().decode().split()
+        tasks = request.get_data().decode().strip().split('\n')
         queue = Queue(user.id)
         db.session.add(queue)
         db.session.commit()
         for task in tasks:
-            task = Task(queue.id, task)
+            label, task = task.split()
+            task = Task(queue.id, task, label)
             db.session.add(task)
         db.session.commit()
     return url_for('get', user=user.token, queue=queue.id,
@@ -151,7 +154,7 @@ def view(user, queue):
             status = 'Assigned'
         else:
             status = 'Waiting'
-        rows.append((task.token, status))
+        rows.append((task.label, task.token, status))
     return render_template('queue.html', queue=queue.id, tasks=rows)
 
 
