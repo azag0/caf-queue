@@ -1,41 +1,26 @@
 <!doctype html>
 <!-- vim: set ft=liquid: -->
 <head>
-    <title>Queue #{{ queue }}</title>
+    <title>Queue #{{ queueid }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            font-family: monospace;
-        }
-
-        table {
-            border-spacing: 0;
-        }
-
-        td {
-            padding: 0 1em 0 0;
-        }
-
-        ul {
-            list-style-type: none;
-        }
-
-        a {
-            text-decoration: none;
-        }
-    </style>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 </head>
+<ul>
+    <li>user: <a href="{{ url_for('user', username=username) }}">{{ username}}</a></li>
+</ul>
 <table>
     <tr>
         <th>Label</th>
         <th>Task</th>
-        <th>Status</th>
+        <th>State</th>
+        <th>Last changed</th>
     </tr>
-    {% for label, task, assigned in tasks %}
+    {% for label, task, state, last_changed in tasks %}
         <tr>
             <td>{{ label }}</td>
             <td>{{ task }}</td>
-            <td>{{ assigned }}</a></td>
+            <td>{{ state }}</td>
+            <td>{{ last_changed }}</td>
         </tr>
     {% endfor %}
 </table>

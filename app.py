@@ -1,13 +1,98 @@
-from flask import Flask, request, url_for, render_template
+from flask import Flask, request, url_for, render_template, session, abort, redirect
 from flask_sqlalchemy import SQLAlchemy
 import http.client
 import urllib
+from datetime import datetime
+from collections import defaultdict
+from functools import wraps
 
 
 app = Flask(__name__)
+app.config.from_envvar('CONF')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///{}/queue.db'.format(app.root_path)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+date_format = '%Y-%m-%d %H:%M:%S'
+
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20), unique=True)
+    token = db.Column(db.String(10), unique=True)
+    password = db.Column(db.String(40))
+    pushover = db.Column(db.String(20))
+    queues = db.relationship('Queue', backref='user', lazy='dynamic')
+
+    def __init__(self, name, password, token, pushover=None):
+        self.name = name
+        self.password = password
+        self.token = token
+        self.pushover = pushover
+
+
+class Queue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    date_created_str = db.Column(db.String(30))
+    done = db.Column(db.Boolean)
+    tasks = db.relationship('Task', backref='queue', lazy='dynamic')
+
+    def __init__(self, user_id):
+        self.user_id = user_id
+        self.date_created_str = datetime.now().strftime(date_format)
+        self.done = False
+
+    @property
+    def date_created(self):
+        return datetime.strptime(self.date_created_str, date_format)
+
+    @property
+    def date_changed(self):
+        return max(task.date_changed for task in self.tasks)
+
+    @property
+    def task_states(self):
+        states = defaultdict(int)
+        for task in self.tasks:
+            states[task.state] += 1
+        return dict(states)
+
+
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(50))
+    state = db.Column(db.String(20))
+    date_changed_str = db.Column(db.String(20))
+    label = db.Column(db.String(200))
+    queue_id = db.Column(db.Integer, db.ForeignKey('queue.id'))
+
+    def __init__(self, queue_id, token, label='', state='Waiting', changed=None):
+        self.queue_id = queue_id
+        self.token = token
+        self.label = label
+        self.state = state
+        self.date_changed_str = changed or datetime.now().strftime(date_format)
+
+    def __repr__(self):
+        return 'Task({})'.format(', '.join(map(repr, [
+            self.queue_id, self.token, self.label, self.state, self.date_changed_str
+        ])))
+
+    @property
+    def date_changed(self):
+        return datetime.strptime(self.date_changed_str, date_format)
+
+    def change_state(self, state):
+        self.state = state
+        self.date_changed_str = datetime.now().strftime(date_format)
+
+
+class Pushover(db.Model):
+    token = db.Column(db.String(20), primary_key=True)
+
+    def __init__(self, token):
+        self.token = token
 
 
 def pushover(user, msg):
@@ -25,137 +110,155 @@ def pushover(user, msg):
     conn.getresponse()
 
 
-class Pushover(db.Model):
-    token = db.Column(db.String(20), primary_key=True)
-
-    def __init__(self, token):
-        self.token = token
-
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    token = db.Column(db.String(20), unique=True)
-    pushover = db.Column(db.String(20))
-    queues = db.relationship('Queue', backref='user', lazy='dynamic')
-
-    def __init__(self, token, pushover=None):
-        self.token = token
-        self.pushover = pushover
+@app.route('/')
+def index():
+    if 'username' in session:
+        return redirect(url_for('user', username=session['username']))
+    else:
+        return redirect(url_for('login'))
 
 
-class Queue(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    tasks = db.relationship('Task', backref='queue', lazy='dynamic')
-
-    def __init__(self, user_id):
-        self.user_id = user_id
-
-
-class Task(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    queue_id = db.Column(db.Integer, db.ForeignKey('queue.id'))
-    assigned = db.Column(db.Boolean)
-    done = db.Column(db.Boolean)
-    token = db.Column(db.String(50))
-    label = db.Column(db.String(100))
-
-    def __init__(self, queue_id, token, label=None, assigned=False, done=False):
-        self.queue_id = queue_id
-        self.token = token
-        self.assigned = assigned
-        self.done = done
-        self.label = label or ''
-
-    def __repr__(self):
-        return 'Task({})'.format(', '.join(map(repr, [
-            self.queue_id, self.token, self.assigned, self.done])))
-
-
-@app.route('/submit/<user>', methods=['POST'])
-def submit(user):
+@app.route('/login', methods=['GET', 'POST'])
+def login():
     if request.method == 'POST':
-        user = User.query.filter_by(token=user).first_or_404()
-        tasks = request.get_data().decode().strip().split('\n')
-        queue = Queue(user.id)
-        db.session.add(queue)
-        db.session.commit()
-        for task in tasks:
-            label, task = task.split()
-            task = Task(queue.id, task, label)
-            db.session.add(task)
-        db.session.commit()
-    return url_for('get', user=user.token, queue=queue.id,
-                   _external=True)
+        username = request.form['username']
+        user = User.query.filter_by(
+            name=username,
+            password=request.form['password']
+        ).first()
+        if not user:
+            return redirect(url_for('login'))
+        session['username'] = username
+        return redirect(url_for('user', username=session['username']))
+    return render_template('login.html')
 
 
-@app.route('/get/<user>/<queue>')
-def get(user, queue):
-    User.query.filter_by(token=user).first_or_404()
-    queue = Queue.query.get_or_404(int(queue))
-    task = queue.tasks.filter_by(assigned=False).order_by(Task.id).first_or_404()
-    task.assigned = True
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect(url_for('login'))
+
+
+def authenticated(view):
+    @wraps(view)
+    def authview(**kwargs):
+        try:
+            usertoken = kwargs.pop('usertoken')
+        except KeyError:
+            pass
+        else:
+            return view(user=User.query.filter_by(token=usertoken).first_or_404(), **kwargs)
+        if 'username' not in session:
+            return redirect(url_for('index'))
+        username = kwargs.pop('username')
+        if username != session['username']:
+            abort(404)
+        return view(User.query.filter_by(name=username).first_or_404(), **kwargs)
+    return authview
+
+
+@app.route('/user/<username>')
+@authenticated
+def user(user):
+    rows = [(queue.id,
+             str(queue.task_states),
+             queue.date_created.strftime(date_format),
+             queue.date_changed.strftime(date_format),
+             )
+            for queue in user.queues]
+    return render_template('user.html',
+                           usertoken=user.token, username=user.name, queues=rows)
+
+
+@app.route('/token/<usertoken>/submit', methods=['POST'])
+@authenticated
+def submit(user):
+    tasklines = request.get_data().decode().strip().split('\n')
+    if not tasklines[0]:
+        abort(404)
+    queue = Queue(user.id)
+    db.session.add(queue)
+    db.session.commit()
+    for taskline in tasklines:
+        label, token = taskline.split()
+        task = Task(queue.id, token, label)
+        db.session.add(task)
+    db.session.commit()
+    return url_for('get', usertoken=user.token, queueid=queue.id, _external=True)
+
+
+@app.route('/user/<username>/queue/<queueid>')
+@authenticated
+def queue(user, queueid):
+    queue = Queue.query.get_or_404(int(queueid))
+    rows = [(task.label, task.token, task.state, task.date_changed_str)
+            for task in queue.tasks.order_by(Task.id).all()]
+    return render_template('queue.html',
+                           username=user.name, queueid=queue.id, tasks=rows)
+
+
+@app.route('/token/<usertoken>/queue/<queueid>/get')
+@authenticated
+def get(user, queueid):
+    queue = Queue.query.get_or_404(int(queueid))
+    task = queue.tasks.filter_by(state='Waiting').order_by(Task.id).first_or_404()
+    task.change_state('Assigned')
     db.session.commit()
     return '\n'.join([
         task.token,
-        url_for('done', user=user, queue=queue.id, task=task.token,
+        url_for('change_state',
+                usertoken=user.token, queueid=queueid, state='_state_', token=task.token,
                 _external=True),
-        url_for('put_back', user=user, queue=queue.id, task=task.token,
-                _external=True)])
+        url_for('put_back',
+                usertoken=user.token, queueid=queueid, token=task.token,
+                _external=True)
+    ])
 
 
-@app.route('/done/<user>/<queue>/<path:task>')
-def done(user, queue, task):
-    user = User.query.filter_by(token=user).first_or_404()
-    queue = Queue.query.get_or_404(int(queue))
-    task = queue.tasks.filter_by(token=task).first_or_404()
-    task.done = True
+@app.route('/user/<username>/queue/<queueid>/reset')
+@authenticated
+def reset(user, queueid):
+    queue = Queue.query.get_or_404(int(queueid))
+    queue.tasks.filter(Task.state != 'Done').update({'state': 'Waiting'})
     db.session.commit()
-    if queue.tasks.filter_by(done=False).first() is None:
-        for task in queue.tasks.all():
-            db.session.delete(task)
-        db.session.delete(queue)
+    return redirect(url_for('user', username=user.name))
+
+
+@app.route('/user/<username>/queue/<queueid>/delete')
+@authenticated
+def delete(user, queueid):
+    queue = Queue.query.get_or_404(int(queueid))
+    for task in queue.tasks:
+        db.session.delete(task)
+    db.session.delete(queue)
+    db.session.commit()
+    return redirect(url_for('user', username=user.name))
+
+
+@app.route('/token/<usertoken>/queue/<queueid>/change_state/<state>/<path:token>')
+@authenticated
+def change_state(user, queueid, state, token):
+    queue = Queue.query.get_or_404(int(queueid))
+    task = queue.tasks.filter_by(token=token).first_or_404()
+    task.change_state(state)
+    db.session.commit()
+    if not queue.tasks.filter(Task.state != 'Done').first():
+        queue.done = True
         db.session.commit()
         if user.pushover:
-            pushover(user.pushover,
-                     'Queue #{} is done'.format(queue.id))
+            pushover(user.pushover, 'Queue #{} is done'.format(queue.id))
     return ''
 
 
-@app.route('/put-back/<user>/<queue>/<path:task>')
-def put_back(user, queue, task):
-    user = User.query.filter_by(token=user).first_or_404()
-    queue = Queue.query.get_or_404(int(queue))
-    task = queue.tasks.filter_by(token=task).first_or_404()
+@app.route('/token/<usertoken>/queue/<queueid>/put_back/<path:token>')
+@authenticated
+def put_back(user, queueid, token):
+    queue = Queue.query.get_or_404(int(queueid))
+    task = queue.tasks.filter_by(token=token).first_or_404()
     db.session.delete(task)
-    db.session.add(Task(queue.id, task.token))
+    db.session.add(Task(queue.id, task.token, task.label, 'Waiting'))
     db.session.commit()
     return ''
-
-
-@app.route('/reset/<user>/<queue>')
-def reset(user, queue):
-    User.query.filter_by(token=user).first_or_404()
-    queue = Queue.query.get_or_404(int(queue))
-    queue.tasks.update({'assigned': False})
-    db.session.commit()
-    return ''
-
-
-@app.route('/view/<user>/<queue>')
-def view(user, queue):
-    User.query.filter_by(token=user).first_or_404()
-    queue = Queue.query.get_or_404(int(queue))
-    rows = []
-    for task in queue.tasks.order_by(Task.id).all():
-        if task.done:
-            status = 'Done'
-        elif task.assigned:
-            status = 'Assigned'
-        else:
-            status = 'Waiting'
-        rows.append((task.label, task.token, status))
-    return render_template('queue.html', queue=queue.id, tasks=rows)
 
 
 if __name__ == '__main__':

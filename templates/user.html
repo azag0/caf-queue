@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- vim: set ft=liquid: -->
+<head>
+    <title>Caf Queue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<ul>
+    <li>user: {{ username }}</li>
+    <li>user token: {{ usertoken }}</li>
+    <li class="button"><a href="{{ url_for('logout') }}">LOGOUT</a></li>
+</ul>
+<table>
+    <tr>
+        <th>Queue</th>
+        <th>Tasks</th>
+        <th>Date created</th>
+        <th>Date changed</th>
+    </tr>
+    {% for queueid, tasks, date_created, date_changed in queues %}
+        <tr>
+            <td>
+                <a href="{{ url_for('queue', username=username, queueid=queueid) }}">#{{ queueid }}</a>
+            </td>
+            <td>{{ tasks }}</td>
+            <td>{{ date_created }}</td>
+            <td>{{ date_changed }}</td>
+            <td class="button">
+                <a href="{{ url_for('reset', username=username, queueid=queueid) }}">RESET</a>
+            </td>
+            <td class="button">
+                <a href="{{ url_for('delete', username=username, queueid=queueid) }}">DELETE</a>
+            </td>
+        </tr>
+    {% endfor %}
+</table>
