@@ -242,7 +242,7 @@ def change_state(user, queueid, state, token):
     task = queue.tasks.filter_by(token=token).first_or_404()
     task.change_state(state)
     db.session.commit()
-    if not queue.tasks.filter(Task.state != 'Done').first():
+    if queue.tasks.filter(Task.state.in_(['Waiting', 'Assigned'])).first() is None:
         queue.done = True
         db.session.commit()
         if user.pushover:
