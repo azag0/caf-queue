@@ -206,6 +206,7 @@ def get(user, queueid):
     db.session.commit()
     return '\n'.join([
         task.token,
+        task.label,
         url_for('change_state',
                 usertoken=user.token, queueid=queueid, state='_state_', token=task.token,
                 _external=True),
