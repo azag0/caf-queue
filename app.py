@@ -49,7 +49,8 @@ class Queue(db.Model):
 
     @property
     def date_changed(self):
-        return max(task.date_changed for task in self.tasks)
+        dates = [task.date_changed for task in self.tasks]
+        return max(dates) if dates else self.date_created
 
     @property
     def task_states(self):
@@ -63,6 +64,7 @@ class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     token = db.Column(db.String(50))
     state = db.Column(db.String(20))
+    caller = db.Column(db.String(100))
     date_changed_str = db.Column(db.String(20))
     label = db.Column(db.String(200))
     queue_id = db.Column(db.Integer, db.ForeignKey('queue.id'))
@@ -72,6 +74,7 @@ class Task(db.Model):
         self.token = token
         self.label = label
         self.state = state
+        self.caller = None
         self.date_changed_str = changed or datetime.now().strftime(date_format)
 
     def __repr__(self):
@@ -83,9 +86,10 @@ class Task(db.Model):
     def date_changed(self):
         return datetime.strptime(self.date_changed_str, date_format)
 
-    def change_state(self, state):
+    def change_state(self, state, caller=None):
         self.state = state
         self.date_changed_str = datetime.now().strftime(date_format)
+        self.caller = caller
 
 
 class Pushover(db.Model):
@@ -191,7 +195,8 @@ def submit(user):
 @authenticated
 def queue(user, queueid):
     queue = Queue.query.get_or_404(int(queueid))
-    rows = [(task.label, task.token, task.state, task.date_changed_str)
+    rows = [(task.label, task.token, task.state, task.date_changed_str,
+             task.caller or '')
             for task in queue.tasks.order_by(Task.id).all()]
     return render_template('queue.html',
                            username=user.name, queueid=queue.id, tasks=rows)
@@ -202,13 +207,14 @@ def queue(user, queueid):
 def get(user, queueid):
     queue = Queue.query.get_or_404(int(queueid))
     task = queue.tasks.filter_by(state='Waiting').order_by(Task.id).first_or_404()
-    task.change_state('Assigned')
+    caller = request.args.get('caller')
+    task.change_state('Assigned', caller=caller)
     db.session.commit()
     return '\n'.join([
         task.token,
         task.label,
         url_for('change_state',
-                usertoken=user.token, queueid=queueid, state='_state_', token=task.token,
+                usertoken=user.token, queueid=queueid, token=task.token,
                 _external=True),
         url_for('put_back',
                 usertoken=user.token, queueid=queueid, token=task.token,
@@ -236,11 +242,12 @@ def delete(user, queueid):
     return redirect(url_for('user', username=user.name))
 
 
-@app.route('/token/<usertoken>/queue/<queueid>/change_state/<state>/<path:token>')
+@app.route('/token/<usertoken>/queue/<queueid>/change_state/<path:token>')
 @authenticated
-def change_state(user, queueid, state, token):
+def change_state(user, queueid, token):
     queue = Queue.query.get_or_404(int(queueid))
     task = queue.tasks.filter_by(token=token).first_or_404()
+    state = request.args.get('state')
     task.change_state(state)
     db.session.commit()
     if queue.tasks.filter(Task.state.in_(['Waiting', 'Assigned'])).first() is None:
