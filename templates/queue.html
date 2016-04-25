@@ -11,18 +11,18 @@
 <table>
     <tr>
         <th>Label</th>
-        <th>Task</th>
         <th>State</th>
         <th>Last changed</th>
         <th>Caller</th>
+        <th>Task</th>
     </tr>
     {% for label, task, state, last_changed, caller in tasks %}
         <tr>
             <td>{{ label }}</td>
-            <td>{{ task }}</td>
             <td>{{ state }}</td>
             <td>{{ last_changed }}</td>
             <td>{{ caller }}</td>
+            <td>{{ task }}</td>
         </tr>
     {% endfor %}
 </table>
