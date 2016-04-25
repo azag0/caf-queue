@@ -89,7 +89,8 @@ class Task(db.Model):
     def change_state(self, state, caller=None):
         self.state = state
         self.date_changed_str = datetime.now().strftime(date_format)
-        self.caller = caller
+        if caller:
+            self.caller = caller
 
 
 class Pushover(db.Model):
