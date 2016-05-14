@@ -29,6 +29,9 @@
                 <a href="{{ url_for('reset', username=username, queueid=queueid) }}">RESET</a>
             </td>
             <td class="button">
+                <a href="{{ url_for('reset_error', username=username, queueid=queueid) }}">RESETERROR</a>
+            </td>
+            <td class="button">
                 <a href="{{ url_for('delete', username=username, queueid=queueid) }}">DELETE</a>
             </td>
         </tr>

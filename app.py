@@ -232,6 +232,15 @@ def reset(user, queueid):
     return redirect(url_for('user', username=user.name))
 
 
+@app.route('/user/<username>/queue/<queueid>/reset-error')
+@authenticated
+def reset_error(user, queueid):
+    queue = Queue.query.get_or_404(int(queueid))
+    queue.tasks.filter(Task.state == 'Error').update({'state': 'Waiting'})
+    db.session.commit()
+    return redirect(url_for('user', username=user.name))
+
+
 @app.route('/user/<username>/queue/<queueid>/delete')
 @authenticated
 def delete(user, queueid):
