@@ -171,8 +171,12 @@ def user(user):
              queue.date_changed.strftime(date_format),
              )
             for queue in user.queues]
-    return render_template('user.html',
-                           usertoken=user.token, username=user.name, queues=rows)
+    return render_template(
+        'user.html',
+        usertoken=user.token,
+        username=user.name,
+        queues=reversed(rows)
+    )
 
 
 @app.route('/token/<usertoken>/submit', methods=['POST'])
