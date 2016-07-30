@@ -157,13 +157,19 @@ def authenticated(view):
         except KeyError:
             pass
         else:
-            return view(user=User.query.filter_by(token=usertoken).first_or_404(), **kwargs)
+            return view(
+                user=User.query.filter_by(token=usertoken).first_or_404(),
+                **kwargs
+            )
         if 'username' not in session:
             return redirect(url_for('index'))
         username = kwargs.pop('username')
         if username != session['username']:
             abort(404)
-        return view(User.query.filter_by(name=username).first_or_404(), **kwargs)
+        return view(
+            User.query.filter_by(name=username).first_or_404(),
+            **kwargs
+        )
     return authview
 
 
@@ -208,18 +214,27 @@ def submit(user):
         task = Task(queue.id, token, label)
         db.session.add(task)
     db.session.commit()
-    return url_for('get', usertoken=user.token, queueid=queue.id, _external=True)
+    return url_for('get',
+                   usertoken=user.token,
+                   queueid=queue.id,
+                   _external=True)
 
 
 @app.route('/user/<username>/queue/<queueid>')
 @authenticated
 def queue(user, queueid):
     queue = Queue.query.get_or_404(int(queueid))
-    rows = [(task.label, task.token, task.state, task.date_changed_str,
-             task.caller or '')
-            for task in queue.tasks.order_by(Task.id).all()]
+    rows = [(
+        task.label,
+        task.token,
+        task.state,
+        task.date_changed_str,
+        task.caller or ''
+    ) for task in queue.tasks.order_by(Task.id).all()]
     return render_template('queue.html',
-                           username=user.name, queueid=queue.id, tasks=rows)
+                           username=user.name,
+                           queueid=queue.id,
+                           tasks=rows)
 
 
 @app.route('/token/<usertoken>/queue/<queueid>/get')
@@ -230,16 +245,18 @@ def get(user, queueid):
     caller = request.args.get('caller')
     task.change_state('Assigned', caller=caller)
     db.session.commit()
-    return '\n'.join([
-        task.token,
-        task.label,
-        url_for('change_state',
-                usertoken=user.token, queueid=queueid, token=task.token,
-                _external=True),
-        url_for('put_back',
-                usertoken=user.token, queueid=queueid, token=task.token,
-                _external=True)
-    ])
+    return '\n'.join([task.token,
+                      task.label,
+                      url_for('change_state',
+                              usertoken=user.token,
+                              queueid=queueid,
+                              token=task.token,
+                              _external=True),
+                      url_for('put_back',
+                              usertoken=user.token,
+                              queueid=queueid,
+                              token=task.token,
+                              _external=True)])
 
 
 @app.route('/user/<username>/queue/<queueid>/reset')
