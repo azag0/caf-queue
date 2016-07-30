@@ -5,6 +5,7 @@ import http.client
 import urllib
 from datetime import datetime
 from functools import wraps
+from itertools import groupby
 
 
 app = Flask(__name__)
@@ -169,18 +170,28 @@ def authenticated(view):
 @app.route('/user/<username>')
 @authenticated
 def user(user):
-    rows = [(queue.id,
-             str(queue.task_states),
-             queue.date_created.strftime(date_format),
-             queue.date_changed.strftime(date_format),
-             )
-            for queue in user.queues]
-    return render_template(
-        'user.html',
-        usertoken=user.token,
-        username=user.name,
-        queues=reversed(rows)
+    dates_changed = dict(
+        db.session.query(Task.queue_id, func.max(Task.date_changed_str))
+        .group_by(Task.queue_id).order_by(Task.queue_id).all()
     )
+    task_states = {
+        key: {r[1]: r[2] for r in rows} for key, rows in groupby(
+            db.session.query(Task.queue_id, Task.state, func.count(Task.id))
+            .group_by(Task.queue_id, Task.state)
+            .order_by(Task.queue_id).all(),
+            key=lambda r: r[0]
+        )
+    }
+    rows = [(
+        queue.id,
+        str(task_states[queue.id]),
+        queue.date_created.strftime(date_format),
+        dates_changed[queue.id]
+    ) for queue in user.queues]
+    return render_template('user.html',
+                           usertoken=user.token,
+                           username=user.name,
+                           queues=reversed(rows))
 
 
 @app.route('/token/<usertoken>/submit', methods=['POST'])
