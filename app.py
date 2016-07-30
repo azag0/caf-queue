@@ -1,9 +1,9 @@
 from flask import Flask, request, url_for, render_template, session, abort, redirect
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 import http.client
 import urllib
 from datetime import datetime
-from collections import defaultdict
 from functools import wraps
 
 
@@ -49,15 +49,19 @@ class Queue(db.Model):
 
     @property
     def date_changed(self):
-        dates = [task.date_changed for task in self.tasks]
-        return max(dates) if dates else self.date_created
+        return datetime.strptime(
+            db.session.query(func.max(Task.date_changed_str)).filter(Task.queue_id == 88).first()[0],
+            date_format
+        )
 
     @property
     def task_states(self):
-        states = defaultdict(int)
-        for task in self.tasks:
-            states[task.state] += 1
-        return dict(states)
+        return {
+            state: cnt for state, cnt in db.session
+            .query(Task.state, func.count(Task.id))
+            .filter(Task.queue_id == self.id)
+            .group_by(Task.state).all()
+        }
 
 
 class Task(db.Model):
