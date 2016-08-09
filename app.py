@@ -194,6 +194,7 @@ def user(user):
         queue.date_created.strftime(date_format),
         dates_changed[queue.id]
     ) for queue in user.queues]
+    rows.sort(key=lambda x: x[3])
     return render_template('user.html',
                            usertoken=user.token,
                            username=user.name,
