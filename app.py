@@ -237,6 +237,24 @@ def queue(user, queueid):
                            tasks=rows)
 
 
+@app.route('/token/<usertoken>/queue/<queueid>/append', methods=['POST'])
+@authenticated
+def append(user, queueid):
+    tasklines = request.get_data().decode().strip().split('\n')
+    if not tasklines[0]:
+        abort(404)
+    queue = Queue.query.get_or_404(int(queueid))
+    for taskline in tasklines:
+        label, token = taskline.split()
+        task = Task(queue.id, token, label)
+        db.session.add(task)
+    db.session.commit()
+    return url_for('get',
+                   usertoken=user.token,
+                   queueid=queue.id,
+                   _external=True)
+
+
 @app.route('/token/<usertoken>/queue/<queueid>/get')
 @authenticated
 def get(user, queueid):
