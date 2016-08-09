@@ -282,7 +282,7 @@ def get(user, queueid):
 @authenticated
 def reset(user, queueid):
     queue = Queue.query.get_or_404(int(queueid))
-    queue.tasks.filter(Task.state != 'Done').update({'state': 'Waiting'})
+    queue.tasks.filter(Task.state == 'Assigned').update({'state': 'Waiting'})
     db.session.commit()
     return redirect(url_for('user', username=user.name))
 
