@@ -230,7 +230,8 @@ def queue(user, queueid):
         task.token,
         task.state,
         task.date_changed_str,
-        task.caller or ''
+        task.caller or '',
+        task.id
     ) for task in queue.tasks.order_by(Task.id).all()]
     return render_template('queue.html',
                            username=user.name,
@@ -285,6 +286,15 @@ def reset(user, queueid):
     queue.tasks.filter(Task.state == 'Assigned').update({'state': 'Waiting'})
     db.session.commit()
     return redirect(url_for('user', username=user.name))
+
+
+@app.route('/user/<username>/queue/<queueid>/task/<taskid>/reset')
+@authenticated
+def reset_task(user, queueid, taskid):
+    task = Task.query.get_or_404(int(taskid))
+    task.state = 'Waiting'
+    db.session.commit()
+    return redirect(url_for('queue', username=user.name, queueid=queueid))
 
 
 @app.route('/user/<username>/queue/<queueid>/reset-error')
