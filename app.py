@@ -246,8 +246,11 @@ def append(user, queueid):
     if not tasklines[0]:
         abort(404)
     queue = Queue.query.get_or_404(int(queueid))
+    already_there = [task.token for task in queue.tasks]
     for taskline in tasklines:
         label, token = taskline.split()
+        if token in already_there:
+            continue
         task = Task(queue.id, token, label)
         db.session.add(task)
     db.session.commit()
