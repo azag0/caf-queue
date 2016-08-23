@@ -300,6 +300,15 @@ def reset_task(user, queueid, taskid):
     return redirect(url_for('queue', username=user.name, queueid=queueid))
 
 
+@app.route('/user/<username>/queue/<queueid>/task/<taskid>/delete')
+@authenticated
+def delete_task(user, queueid, taskid):
+    task = Task.query.get_or_404(int(taskid))
+    db.session.delete(task)
+    db.session.commit()
+    return redirect(url_for('queue', username=user.name, queueid=queueid))
+
+
 @app.route('/user/<username>/queue/<queueid>/reset-error')
 @authenticated
 def reset_error(user, queueid):

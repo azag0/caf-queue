@@ -12,6 +12,7 @@
     <tr>
         <th>State</th>
         <th></th>
+        <th></th>
         <th>Last changed</th>
         <th>Caller</th>
         <th>Label</th>
@@ -22,6 +23,9 @@
             <td>{{ state }}</td>
             <td class="button">
                 <a href="{{ url_for('reset_task', username=username, queueid=queueid, taskid=taskid) }}">RESET</a>
+            </td>
+            <td class="button">
+                <a href="{{ url_for('delete_task', username=username, queueid=queueid, taskid=taskid) }}">DELETE</a>
             </td>
             <td>{{ last_changed }}</td>
             <td>{{ caller }}</td>
