@@ -259,7 +259,7 @@ def append(user, queueid):
         task = Task(queue.id, token, label)
         db.session.add(task)
     db.session.commit()
-    return url_for('get',
+    return url_for('_blank_queue',
                    usertoken=user.token,
                    queueid=queue.id,
                    _external=True)
