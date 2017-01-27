@@ -201,6 +201,11 @@ def user(user):
                            queues=reversed(rows))
 
 
+@app.route('/token/<usertoken>/queue/<queueid>')
+def _blank_queue(user, queueid):
+    abort(404)
+
+
 @app.route('/token/<usertoken>/submit', methods=['POST'])
 @authenticated
 def submit(user):
@@ -215,7 +220,7 @@ def submit(user):
         task = Task(queue.id, token, label)
         db.session.add(task)
     db.session.commit()
-    return url_for('get',
+    return url_for('_blank_queue',
                    usertoken=user.token,
                    queueid=queue.id,
                    _external=True)
