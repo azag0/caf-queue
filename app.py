@@ -231,10 +231,12 @@ def submit(user):
 @app.route('/user/<username>/queue/<queueid>')
 @authenticated
 def queue(user, queueid):
+    order = {'Assigned': 0, 'Error': 1, 'Waiting': 2, 'Done': 3}
     queue = Queue.query.get_or_404(int(queueid))
     rows = [(
         t.label, t.token, t.state, t.date_changed_str, t.caller or '', t.id
     ) for t in queue.tasks.order_by(Task.id).all()]
+    rows.sort(key=lambda x: order[x[2]])
     return render_template(
         'queue.html', username=user.name, queueid=queueid, tasks=rows
     )
