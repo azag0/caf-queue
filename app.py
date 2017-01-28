@@ -1,4 +1,5 @@
-from flask import Flask, request, url_for, render_template, session, abort, redirect
+from flask import Flask, request, url_for, render_template, session, \
+    abort, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
 import http.client
@@ -10,9 +11,11 @@ from itertools import groupby
 
 app = Flask(__name__)
 app.config.from_envvar('CONF')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///{}/queue.db'.format(app.root_path)
+app.config['SQLALCHEMY_DATABASE_URI'] = \
+    'sqlite:///{}/queue.db'.format(app.root_path)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
 
 date_format = '%Y-%m-%d %H:%M:%S'
 
@@ -51,7 +54,9 @@ class Queue(db.Model):
     @property
     def date_changed(self):
         return datetime.strptime(
-            db.session.query(func.max(Task.date_changed_str)).filter(Task.queue_id == 88).first()[0],
+            db.session.query(
+                func.max(Task.date_changed_str)
+            ).filter(Task.queue_id == 88).first()[0],
             date_format
         )
 
@@ -110,13 +115,11 @@ def pushover(user, msg):
     if not token:
         return
     conn = http.client.HTTPSConnection('api.pushover.net:443')
-    conn.request('POST',
-                 '/1/messages.json',
-                 urllib.parse.urlencode({
-                     'token': token,
-                     'user': user,
-                     'message': msg}),
-                 {'Content-type': 'application/x-www-form-urlencoded'})
+    conn.request('POST', '/1/messages.json', urllib.parse.urlencode({
+        'token': token,
+        'user': user,
+        'message': msg
+    }), {'Content-type': 'application/x-www-form-urlencoded'})
     conn.getresponse()
 
 
@@ -195,10 +198,10 @@ def user(user):
         dates_changed[queue.id]
     ) for queue in user.queues]
     rows.sort(key=lambda x: x[3])
-    return render_template('user.html',
-                           usertoken=user.token,
-                           username=user.name,
-                           queues=reversed(rows))
+    return render_template(
+        'user.html', usertoken=user.token, username=user.name,
+        queues=reversed(rows)
+    )
 
 
 @app.route('/token/<usertoken>/queue/<queueid>')
@@ -220,10 +223,9 @@ def submit(user):
         task = Task(queue.id, token, label)
         db.session.add(task)
     db.session.commit()
-    return url_for('_blank_queue',
-                   usertoken=user.token,
-                   queueid=queue.id,
-                   _external=True)
+    return url_for(
+        '_blank_queue', usertoken=user.token, queueid=queue.id, _external=True
+    )
 
 
 @app.route('/user/<username>/queue/<queueid>')
@@ -231,17 +233,11 @@ def submit(user):
 def queue(user, queueid):
     queue = Queue.query.get_or_404(int(queueid))
     rows = [(
-        task.label,
-        task.token,
-        task.state,
-        task.date_changed_str,
-        task.caller or '',
-        task.id
-    ) for task in queue.tasks.order_by(Task.id).all()]
-    return render_template('queue.html',
-                           username=user.name,
-                           queueid=queue.id,
-                           tasks=rows)
+        t.label, t.token, t.state, t.date_changed_str, t.caller or '', t.id
+    ) for t in queue.tasks.order_by(Task.id).all()]
+    return render_template(
+        'queue.html', username=user.name, queueid=queueid, tasks=rows
+    )
 
 
 @app.route('/token/<usertoken>/queue/<queueid>/append', methods=['POST'])
@@ -259,10 +255,9 @@ def append(user, queueid):
         task = Task(queue.id, token, label)
         db.session.add(task)
     db.session.commit()
-    return url_for('_blank_queue',
-                   usertoken=user.token,
-                   queueid=queue.id,
-                   _external=True)
+    return url_for(
+        '_blank_queue', usertoken=user.token, queueid=queue.id, _external=True
+    )
 
 
 @app.route('/token/<usertoken>/queue/<queueid>/get')
@@ -273,18 +268,18 @@ def get(user, queueid):
     caller = request.args.get('caller')
     task.change_state('Assigned', caller=caller)
     db.session.commit()
-    return '\n'.join([task.token,
-                      task.label,
-                      url_for('change_state',
-                              usertoken=user.token,
-                              queueid=queueid,
-                              token=task.token,
-                              _external=True),
-                      url_for('put_back',
-                              usertoken=user.token,
-                              queueid=queueid,
-                              token=task.token,
-                              _external=True)])
+    return '\n'.join([
+        task.token,
+        task.label,
+        url_for(
+            'change_state', usertoken=user.token, queueid=queueid,
+            token=task.token, _external=True
+        ),
+        url_for(
+            'put_back', usertoken=user.token, queueid=queueid,
+            token=task.token, _external=True
+        )
+    ])
 
 
 @app.route('/user/<username>/queue/<queueid>/reset')
